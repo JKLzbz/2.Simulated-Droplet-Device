@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# 忽略 Obsidian 同步的外部双向链接文件夹
+/10毕业设计同步DO
+/10毕业设计同步PAST
+

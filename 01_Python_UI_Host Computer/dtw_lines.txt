@@ -1,0 +1,14 @@
+26: from fastdtw import fastdtw
+360:                 # 如果是记录真人咳嗽，无需执行后面 DTW 对比逻辑
+364:                 # --- 🚀 终极闭环：触发 DTW 相似度打分 ---
+378:                     # 4. 执行 FastDTW 算法对齐并打分
+379:                     # 修复点：去掉 scipy 的 euclidean，因为 fastdtw 底层传标量给它会报错 1-D
+380:                     distance_dtw, _ = fastdtw(cough_segment, gupta_template, dist=lambda x, y: abs(x - y))
+383:                     MAX_DTW_DIST = 150.0  
+384:                     score = max(0.0, 100.0 * (1.0 - distance_dtw / MAX_DTW_DIST))
+395:                     self.lbl_dtw_score.setStyleSheet(f"color: {color}; font-size: 24px; font-weight: bold; background: #fff; border-radius: 5px; padding: 5px;")
+402:                     self.log_message(f"🧠 DTW 相似度比对完毕: {score:.1f}% (欧氏距离: {distance_dtw:.1f})", "SUCCESS")
+438:                     self.log_message(f"DTW 计算失败: {e}", "ERROR")
+482:         # 预留 FastDTW 算法评估入口
+483:         # 注: 当 D0-D10 完整序列执行结束后，上位机在此处调用 DTW 引擎对齐波形并计算得分
+922:         ai_card = make_big_card("🏆 FastDTW 闭环评估", self.lbl_ai_val, "相似度得分", "#16a34a")

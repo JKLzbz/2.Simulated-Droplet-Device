@@ -1,0 +1,102 @@
+<mxfile host="app.diagrams.net" modified="2026-04-26T16:59:00.000Z" agent="Cursor" version="24.7.17">
+  <diagram id="hw-arch" name="Hardware Architecture">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="Simulated Droplet Device — 硬件架构图（基于 Python_UI/main3.py）" style="text;html=1;align=center;verticalAlign=middle;fontSize=20;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="30" width="1440" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- LAN / Network backbone -->
+        <mxCell id="net" value="局域网 / Wi‑Fi（TCP）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf2ff;strokeColor=#4b7bec;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="110" width="1440" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- PC / Host -->
+        <mxCell id="pc" value="上位机（PC）&#xa;Python UI：DualDragonTerminal&#xa;控制：连接 ESP32:80&#xa;监测：监听 0.0.0.0:8080（STM32 上报）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2f3542;fontSize=13;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="120" y="230" width="420" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- ESP32 (Emitter / Control) -->
+        <mxCell id="esp32" value="发生端 MCU：ESP32&#xa;TCP Server:80（接收控制指令）&#xa;指令：SPEED / PUMP_ON/OFF / ATOM_TOGGLE / VALVE_TOGGLE / COUGH_PERFECT / STOP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7e6;strokeColor=#fa983a;fontSize=13;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="720" y="230" width="460" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- Actuators -->
+        <mxCell id="act_grp" value="执行机构（发生端）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff1f2;strokeColor=#ff4757;fontSize=13;fontStyle=1;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="720" y="420" width="460" height="300" as="geometry" />
+        </mxCell>
+
+        <mxCell id="pump" value="气泵 / 气动引擎蓄压&#xa;功率：0~1023（SPEED）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#ff6b81;fontSize=12;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="760" y="470" width="380" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="atom" value="雾化片 / 雾化板&#xa;ATOM_TOGGLE（脉冲/切换）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#ff6b81;fontSize=12;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="760" y="560" width="380" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="valve" value="电磁阀&#xa;VALVE_TOGGLE（开/关）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#ff6b81;fontSize=12;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="760" y="650" width="380" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- STM32 (Monitor / Sensor) -->
+        <mxCell id="stm32" value="监测端 MCU：STM32&#xa;作为 TCP Client 连接上位机:8080&#xa;上传帧头 AA FF + float(电容变化)&#xa;上位机侧滑动平均（窗口=10）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9f7ef;strokeColor=#20bf6b;fontSize=13;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="120" y="470" width="420" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fdc2214" value="FDC2214 微电容传感器&#xa;“飞沫雷达”采样" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#26de81;fontSize=12;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="120" y="660" width="420" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Optional: Sensing electrode / test chamber -->
+        <mxCell id="chamber" value="检测电极 / 检测腔（被测区域）&#xa;飞沫引起电容波动" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#45aaf2;fontSize=12;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="120" y="760" width="420" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e_pc_net" value="" style="endArrow=none;startArrow=none;strokeWidth=2;strokeColor=#4b7bec;" edge="1" parent="1" source="pc" target="net">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_esp_net" value="" style="endArrow=none;startArrow=none;strokeWidth=2;strokeColor=#4b7bec;" edge="1" parent="1" source="esp32" target="net">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_stm_net" value="" style="endArrow=none;startArrow=none;strokeWidth=2;strokeColor=#4b7bec;" edge="1" parent="1" source="stm32" target="net">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_pc_esp" value="控制（TCP）&#xa;PC → ESP32:80" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#fa983a;fontSize=12;" edge="1" parent="1" source="pc" target="esp32">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_stm_pc" value="数据流（TCP）&#xa;STM32 → PC:8080" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#20bf6b;fontSize=12;" edge="1" parent="1" source="stm32" target="pc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_esp_pump" value="PWM/IO" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#ff4757;fontSize=11;" edge="1" parent="1" source="esp32" target="pump">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_esp_atom" value="IO" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#ff4757;fontSize=11;" edge="1" parent="1" source="esp32" target="atom">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_esp_valve" value="IO" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#ff4757;fontSize=11;" edge="1" parent="1" source="esp32" target="valve">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_stm_fdc" value="I2C / 采样" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#26de81;fontSize=11;" edge="1" parent="1" source="stm32" target="fdc2214">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_fdc_chamber" value="电容变化" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#45aaf2;fontSize=11;" edge="1" parent="1" source="fdc2214" target="chamber">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

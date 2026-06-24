@@ -1,0 +1,39 @@
+{
+	"folders": [
+		{
+			"name": "🐍 上位机_Python",
+			"path": "01_Python_UI_Host Computer"
+		},
+		{
+			"name": "⚙️ 下位机_ESP32",
+			"path": "02_ESP32_Slave Computer/ESP32_Cores"
+		},
+		{
+			"name": "🌿 下位机_STM32F407",
+			"path": "03_STM32F407"
+		},
+		{
+			"name": "📚 毕业设计_DO",
+			"path": "10毕业设计同步DO"
+		},
+		{
+			"name": "📚 毕业设计_PAST",
+			"path": "10毕业设计同步PAST"
+		}
+	],
+	"settings": {
+		"python.defaultInterpreterPath": "${workspaceFolder:🐍 上位机_Python}/.venv/Scripts/python.exe",
+		"python.terminal.activateEnvironment": true,
+		"terminal.integrated.profiles.windows": {
+			"Python (.venv)": {
+				"source": "PowerShell",
+				"args": [
+					"-NoExit",
+					"-Command",
+					"& 'D:/02Projects/01Simulated-Droplet-Device/01_Python_UI_Host Computer/.venv/Scripts/Activate.ps1'"
+				]
+			}
+		},
+		"terminal.integrated.defaultProfile.windows": "Python (.venv)"
+	}
+}

@@ -1,0 +1,86 @@
+<mxfile host="Electron" modified="2024-04-27T00:00:00.000Z" agent="Mozilla/5.0" version="22.1.2" type="device">
+  <diagram id="b9bd47ac" name="Hardware Architecture">
+    <mxGraphModel dx="1000" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- PC Group -->
+        <mxCell id="pc" value="&lt;b&gt;Host PC (UI &amp;amp; Control)&lt;/b&gt;&lt;br&gt;PyQt6 DualDragonTerminal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="300" y="80" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ESP32 Group -->
+        <mxCell id="esp32" value="&lt;b&gt;ESP32 Microcontroller&lt;/b&gt;&lt;br&gt;(发生端 / Generator End)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="150" y="240" width="180" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- STM32 Group -->
+        <mxCell id="stm32" value="&lt;b&gt;STM32 Microcontroller&lt;/b&gt;&lt;br&gt;(监测端 / Monitor End)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="490" y="240" width="180" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Hardware ESP32 -->
+        <mxCell id="pump" value="气泵 (Air Pump)&lt;br&gt;[PWM: 0-1023]" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="380" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="atom" value="雾化板 (Atomizer)&lt;br&gt;[GPIO]" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="180" y="380" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="valve" value="电磁阀 (Valve)&lt;br&gt;[GPIO]" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="320" y="380" width="120" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Hardware STM32 -->
+        <mxCell id="fdc" value="FDC2214 微电容雷达&lt;br&gt;(Droplet Sensor)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="490" y="380" width="180" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Connections PC to Microcontrollers -->
+        <mxCell id="edge1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;" edge="1" parent="1" source="pc" target="esp32">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label1" value="TCP Commands&lt;br&gt;(Port 80)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="edge1">
+          <mxGeometry x="-0.2" y="0" relative="1" as="geometry">
+            <mxPoint y="10" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;strokeWidth=2;" edge="1" parent="1" source="stm32" target="pc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label2" value="TCP Sensor Data&lt;br&gt;(Port 8080)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="edge2">
+          <mxGeometry x="-0.2" y="0" relative="1" as="geometry">
+            <mxPoint y="-10" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Connections ESP32 to Peripherals -->
+        <mxCell id="edge3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="esp32" target="pump">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="esp32" target="atom">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="esp32" target="valve">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Connections STM32 to Peripherals -->
+        <mxCell id="edge6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;startArrow=classic;startFill=1;endArrow=none;endFill=0;" edge="1" parent="1" source="fdc" target="stm32">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Physical process -->
+        <mxCell id="edge_process" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;dashed=1;strokeColor=#FF0000;strokeWidth=2;" edge="1" parent="1" source="valve" target="fdc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label_process" value="Aerosol / Droplets flow" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontColor=#FF0000;fontStyle=1" vertex="1" connectable="0" parent="edge_process">
+          <mxGeometry x="0" y="0" relative="1" as="geometry">
+            <mxPoint y="-10" as="offset" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

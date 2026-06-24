@@ -1,0 +1,300 @@
+version: "4.1"
+name: OV5640
+type: ARM
+deviceName: null
+packDir: null
+srcDirs: []
+virtualFolder:
+  name: <virtual_root>
+  files: []
+  folders:
+    - name: USER
+      files:
+        - path: USER/main.c
+        - path: USER/stm32f4xx_it.c
+        - path: HARDWARE/BEEP/beep.c
+        - path: USER/system_stm32f4xx.c
+      folders: []
+    - name: HARDWARE
+      files:
+        - path: HARDWARE/LED/led.c
+        - path: HARDWARE/LCD/lcd.c
+        - path: HARDWARE/DCMI/dcmi.c
+        - path: HARDWARE/OV5640/ov5640.c
+        - path: HARDWARE/OV5640/sccb.c
+        - path: HARDWARE/TIMER/timer.c
+        - path: HARDWARE/SDIO/sdio_sdcard.c
+        - path: HARDWARE/SPI/spi.c
+        - path: HARDWARE/SRAM/sram.c
+        - path: HARDWARE/W25QXX/w25qxx.c
+        - path: HARDWARE/EXTI/exti.c
+      folders: []
+    - name: SYSTEM
+      files:
+        - path: SYSTEM/delay/delay.c
+        - path: SYSTEM/sys/sys.c
+        - path: SYSTEM/usart/usart.c
+      folders: []
+    - name: CORE
+      files:
+        - path: CORE/startup_stm32f40_41xxx.s
+      folders: []
+    - name: FWLIB
+      files:
+        - path: FWLIB/src/misc.c
+        - path: FWLIB/src/stm32f4xx_dcmi.c
+        - path: FWLIB/src/stm32f4xx_dma.c
+        - path: FWLIB/src/stm32f4xx_fsmc.c
+        - path: FWLIB/src/stm32f4xx_gpio.c
+        - path: FWLIB/src/stm32f4xx_rcc.c
+        - path: FWLIB/src/stm32f4xx_tim.c
+        - path: FWLIB/src/stm32f4xx_usart.c
+        - path: FWLIB/src/stm32f4xx_spi.c
+        - path: FWLIB/src/stm32f4xx_sdio.c
+        - path: FWLIB/src/stm32f4xx_syscfg.c
+        - path: FWLIB/src/stm32f4xx_exti.c
+        - path: FWLIB/src/stm32f4xx_i2c.c
+      folders: []
+    - name: USMART
+      files:
+        - path: USMART/usmart.c
+        - path: USMART/usmart_config.c
+        - path: USMART/usmart_str.c
+      folders: []
+    - name: FATFS
+      files:
+        - path: FATFS/src/diskio.c
+        - path: FATFS/src/ff.c
+        - path: FATFS/exfuns/exfuns.c
+        - path: FATFS/exfuns/fattester.c
+        - path: FATFS/exfuns/mycc936.c
+      folders: []
+    - name: TEXT
+      files:
+        - path: TEXT/fontupd.c
+        - path: TEXT/text.c
+      folders: []
+    - name: MALLOC
+      files:
+        - path: MALLOC/malloc.c
+      folders: []
+    - name: REDME
+      files:
+        - path: readme.txt
+      folders: []
+    - name: FDC2214
+      files:
+        - path: FDC2214/fdc2214.c
+      folders: []
+    - name: M8266WIFI
+      files:
+        - path: M8266WIFI/M8266HostIf_STM32xx.c
+        - path: M8266WIFI/M8266WIFI_ops.c
+        - path: M8266WIFI/test_m8266wifi.c
+        - path: M8266WIFI/WiFiSend.c
+        - path: M8266WIFI/M8266WIFIDrv_STM32F4xx.a
+        - path: M8266WIFI/WiFiReceive.c
+      folders: []
+    - name: VL53L1X
+      files:
+        - path: VL53L1X/core/vl53l1_api.c
+        - path: VL53L1X/core/vl53l1_api_calibration.c
+        - path: VL53L1X/core/vl53l1_api_core.c
+        - path: VL53L1X/core/vl53l1_api_debug.c
+        - path: VL53L1X/core/vl53l1_api_preset_modes.c
+        - path: VL53L1X/core/vl53l1_api_strings.c
+        - path: VL53L1X/core/vl53l1_core.c
+        - path: VL53L1X/core/vl53l1_core_support.c
+        - path: VL53L1X/core/vl53l1_error_strings.c
+        - path: VL53L1X/core/vl53l1_register_funcs.c
+        - path: VL53L1X/core/vl53l1_silicon_core.c
+        - path: VL53L1X/core/vl53l1_wait.c
+        - path: VL53L1X/demo/vl53l1x.c
+        - path: VL53L1X/platform/vl53l1_platform.c
+        - path: VL53L1X/platform/vl53l1x_i2c.c
+      folders: []
+    - name: Temp
+      files:
+        - path: Temp/STM32_GD60914.c
+      folders: []
+    - name: MPU6050
+      files:
+        - path: MPU6050/mpu6050.c
+        - path: MPU6050/myiic.c
+        - path: MPU6050/eMPL/inv_mpu.c
+        - path: MPU6050/eMPL/inv_mpu_dmp_motion_driver.c
+      folders: []
+dependenceList: []
+outDir: build
+miscInfo:
+  uid: 908a0d2f770dad5c1cec1c48627a425c
+targets:
+  Target 1:
+    cppPreprocessAttrs:
+      defineList:
+        - STM32F40_41xxx
+        - USE_STDPERIPH_DRIVER
+      incList:
+        - CORE
+        - FWLIB/inc
+        - HARDWARE/DCMI
+        - HARDWARE/KEY
+        - HARDWARE/LCD
+        - HARDWARE/LED
+        - HARDWARE/OV5640
+        - HARDWARE/TIMER
+        - SYSTEM/delay
+        - SYSTEM/sys
+        - USMART
+        - HARDWARE/BEEP
+        - HARDWARE/SDIO
+        - HARDWARE/SPI
+        - HARDWARE/SRAM
+        - HARDWARE/W25QXX
+        - FATFS/src
+        - FATFS/exfuns
+        - MALLOC
+        - PICTURE
+        - TEXT
+        - FDC2214
+        - VL53L1X/core
+        - VL53L1X/demo
+        - VL53L1X/platform
+        - USER
+        - HARDWARE/UART1
+        - HARDWARE/UART2
+        - SYSTEM/usart
+        - M8266WIFI
+        - Temp
+        - HARDWARE/EXTI
+        - MPU6050
+        - MPU6050/eMPL
+      libList: []
+    excludeList: []
+    settings:
+      debugger: cortex-debug
+    toolchain: AC5
+    toolchainConfigMap:
+      AC5:
+        archExtensions: ""
+        cpuType: Cortex-M4
+        floatingPointHardware: single
+        options:
+          version: 4
+          afterBuildTasks: []
+          asm-compiler:
+            defines: []
+          beforeBuildTasks: []
+          c/cpp-compiler:
+            CXX_FLAGS: --diag_suppress=1 --diag_suppress=1295
+            C_FLAGS: --diag_suppress=1 --diag_suppress=1295
+            c99-mode: true
+            one-elf-section-per-function: true
+            optimization: level-1
+            warnings: all-warnings
+          global:
+            output-debug-info: enable
+            use-microLIB: true
+          linker:
+            $outputTaskExcludes:
+              - .bin
+            output-format: elf
+            ro-base: "0x08000000"
+            rw-base: "0x20000000"
+            xo-base: ""
+        scatterFilePath: ""
+        storageLayout:
+          RAM:
+            - id: 1
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 2
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 3
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 1
+              isChecked: true
+              mem:
+                size: "0x20000"
+                startAddr: "0x20000000"
+              noInit: false
+              tag: IRAM
+            - id: 2
+              isChecked: false
+              mem:
+                size: "0x10000"
+                startAddr: "0x10000000"
+              noInit: false
+              tag: IRAM
+          ROM:
+            - id: 1
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 2
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 3
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 1
+              isChecked: true
+              isStartup: true
+              mem:
+                size: "0x100000"
+                startAddr: "0x8000000"
+              tag: IROM
+            - id: 2
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: IROM
+        useCustomScatterFile: false
+    uploadConfigMap:
+      JLink:
+        baseAddr: ""
+        bin: ""
+        cpuInfo:
+          cpuName: "null"
+          vendor: "null"
+        otherCmds: ""
+        proType: 1
+        speed: 8000
+      STLink:
+        address: "0x8000000"
+        bin: ""
+        elFile: None
+        optionBytes: .eide/target 1.st.option.bytes.ini
+        otherCmds: ""
+        proType: SWD
+        resetMode: default
+        runAfterProgram: true
+        speed: 4000
+    uploader: STLink
