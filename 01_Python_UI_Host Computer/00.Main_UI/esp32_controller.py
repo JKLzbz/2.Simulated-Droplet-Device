@@ -12,7 +12,7 @@ import socket
 
 
 class Esp32Controller:
-    def __init__(self, ip: str = "172.20.10.2", port: int = 80, timeout_s: float = 1.0):
+    def __init__(self, ip: str = "192.168.137.100", port: int = 80, timeout_s: float = 1.0):
         self.ip = ip
         self.port = port
         self.timeout_s = timeout_s

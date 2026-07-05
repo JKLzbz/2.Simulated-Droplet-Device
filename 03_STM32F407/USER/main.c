@@ -279,7 +279,7 @@ int main(void)
 	u8 sd_ok=1;					//0,sd卡不正常;1,SD卡正常. 
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);//设置系统中断优先级分组2
 	delay_init(168);   	//初始化延时函数
-	Usart1Init(115200);	//初始化系统打印数据的串口1
+	Usart1Init(460800);	//高速串口（支持 500Hz 有线传输）
 	LED_Init();				 	//初始化LED	
 	// usmart_dev.init(84);		//已剥离：USMART在系统中未使用且其数据未被正确初始化，直接注释以防空指针引脚HardFault
 /**************Temp初始化**************/
@@ -394,7 +394,6 @@ int main(void)
 	while(1)
 	{
 		// 检查FIFO队列并批量发送
-        u8 batch_count = 0;
         u16 q_len = (fifo_head + FIFO_SIZE - fifo_tail) % FIFO_SIZE;
         // 500Hz+5包（10ms发一次65字节，每秒100包），热点舒适区，配合上位机Jitter Buffer恒速消费
         while (q_len >= 5 || (q_len > 0 && q_len > 100)) {
@@ -407,12 +406,15 @@ int main(void)
                 temp_tail = (temp_tail + 1) % FIFO_SIZE;
                 batch_count++;
             }
-            if (SendBufferViaWiFi((u8*)batch_array, batch_count * sizeof(WifiDataPacket))) {
-                fifo_tail = temp_tail;
-                q_len = (fifo_head + FIFO_SIZE - fifo_tail) % FIFO_SIZE;
-            } else {
-                break;
-            }
+            
+            // 【双路同播】：同时向有线串口发送飞沫数据
+            USART1_SendBinary((u8*)batch_array, batch_count * sizeof(WifiDataPacket));
+
+            SendBufferViaWiFi((u8*)batch_array, batch_count * sizeof(WifiDataPacket));
+            
+            // 【关键修复】：永远推进队尾，保证数据流动，防止WiFi未连接时卡死串口
+            fifo_tail = temp_tail;
+            q_len = (fifo_head + FIFO_SIZE - fifo_tail) % FIFO_SIZE;
         }
 
         static u8 sensor_div = 0;

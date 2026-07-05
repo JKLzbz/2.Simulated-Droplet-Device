@@ -2,8 +2,8 @@
 #include <WiFi.h>
 
 // --- 1. 网络配置 ---
-const char* ssid     = "ZBZ"; 
-const char* password = "282zbzzz";
+const char* ssid     = "JKLwindows"; 
+const char* password = "JKLwindows";
 WiFiServer server(80); 
 
 // --- 2. 硬件引脚定义 ---
@@ -551,6 +551,17 @@ void setup() {
   Serial.print("尝试连接 Wi-Fi 热点: ");
   Serial.println(ssid);
   
+  // ===============================================
+  // 强行锁死静态 IP，防止电脑热点 DHCP 乱分配
+  IPAddress local_IP(192, 168, 137, 100);
+  IPAddress gateway(192, 168, 137, 1);
+  IPAddress subnet(255, 255, 255, 0);
+
+  if (!WiFi.config(local_IP, gateway, subnet)) {
+    Serial.println("STA Failed to configure");
+  }
+  // ===============================================
+
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) { 
     delay(500); 

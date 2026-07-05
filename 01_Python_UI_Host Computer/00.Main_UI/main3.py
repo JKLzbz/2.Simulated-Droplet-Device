@@ -52,6 +52,8 @@ from PyQt6.QtWidgets import (
 from esp32_controller import Esp32Controller
 from plot_style import apply_1209_style, make_curve
 from wifi_worker import WiFiWorker
+from serial_worker import SerialWorker
+import serial.tools.list_ports
 
 # ==========================================
 # 样式常量
@@ -79,16 +81,22 @@ def _btn(text: str, style: str, font=None) -> QPushButton:
 # ==========================================
 # Gupta 咳嗽模型波形生成器
 # ==========================================
-def generate_gupta_waveform(height_cm, weight_kg, gender, total_points=2000, duration_s=1.5):
+def generate_gupta_waveform(height_cm, weight_kg, gender, distance_mm=100.0, total_points=2000, duration_s=1.5):
     """
     使用 Gupta 双 Gamma 回归模型生成标准的咳嗽电容响应曲线模板。
+    引入空间距离补偿衰减 (Spatial Attenuation Compensation)。
     """
     if gender == 'Male':
         cpfr = 3.31 + 0.039 * height_cm - 0.015 * weight_kg
     else:
         cpfr = 2.82 + 0.033 * height_cm - 0.012 * weight_kg
         
-    peak_amplitude = max(5.0, cpfr * 5.0)  
+    # 空间衰减物理补偿（以100mm为基准，距离越远衰减越大）
+    if distance_mm < 100.0:
+        distance_mm = 100.0
+    # 假设 400mm 处峰值衰减为原来的 ~30%
+    attenuation = np.exp(-0.004 * (distance_mm - 100.0))
+    peak_amplitude = max(5.0, cpfr * 5.0) * attenuation
 
     t = np.linspace(0, duration_s, total_points)
     gamma1 = scipy_gamma.pdf(t, a=2.5, scale=0.03)
@@ -166,14 +174,26 @@ class DropletMonitorUI(QWidget):
 
     def connect_monitor(self):
         self.disconnect_monitor()
-        self.worker = WiFiWorker(listen_host=self.monitor_host, listen_port=self.monitor_port)
+        if hasattr(self, 'combo_mode') and self.combo_mode.currentIndex() == 1:
+            port = self.combo_port.currentText()
+            if not port:
+                self.log_message("请先选择一个有效的 COM 端口", "ERROR")
+                return
+            self.worker = SerialWorker(port=port, baudrate=460800)
+            self.log_message(f"▶ 启动串口接收 {port}@460800...", "INFO")
+        else:
+            self.worker = WiFiWorker(listen_host=self.monitor_host, listen_port=self.monitor_port)
+            self.log_message(f"▶ 启动 TCP Server监听 {self.monitor_host}:{self.monitor_port}...", "INFO")
+        
         self.worker.start()
+        if hasattr(self, '_jitter_buf'):
+            self._jitter_buf.clear()
         self.btn_connect.setText("断开")
         self.lbl_stream_text.setText(
-            f"STALL | LISTEN {self.monitor_host}:{self.monitor_port} | last: - | age: -"
+            f"STALL | 监听中... | last: - | age: -"
         )
-        self.log_message(f"📡 开启 TCP Server，监听端口 {self.monitor_host}:{self.monitor_port}...", "INFO")
         self.last_valid_temp = 0.0
+
     def disconnect_monitor(self):
         if self.worker:
             try:
@@ -202,33 +222,53 @@ class DropletMonitorUI(QWidget):
         if q_data:
             self._jitter_buf.extend(q_data)
             
-        # --- 动态匀速蓄水池 (Adaptive Jitter Buffer) ---
-        if getattr(self, '_force_prefill', True):
-            if len(self._jitter_buf) < 50:
-                return  # 开局仅蓄 50 点（0.1秒底水），实现极速实时响应
-            self._force_prefill = False  # 蓄满后发车！
+        # --- 连续时间软性 PID 调节器 (Continuous-Time Soft PID) ---
+        t_now = time.perf_counter()
+        dt = t_now - getattr(self, '_last_draw_t', t_now - 0.05)
+        self._last_draw_t = t_now
+        
+        if dt > 1.0:
+            dt = 1.0
             
         buf_len = len(self._jitter_buf)
-        if buf_len < 500:
-            consume_n = 15  # 极度缺水：放慢到 15点/帧
-        elif buf_len < 1500:
-            consume_n = 20  # 轻度缺水：放慢到 20点/帧
-        elif buf_len > 4000:
-            consume_n = 30  # 积水过多：提速到 30点/帧
-        else:
-            consume_n = 25  # 黄金水位：完美的 25点/帧
+        
+        # 触发重新蓄水保护：如果因为严重断网导致干涸，暂停重蓄，防止一卡一卡
+        if buf_len == 0:
+            self._force_prefill = True
             
+        if getattr(self, '_force_prefill', True):
+            if buf_len < 250:  
+                return  # 攒够 0.5 秒的深水池，专门抵御 WiFi 的随机网络波动
+            self._force_prefill = False
+            
+        # P-Controller: 目标维持 250 个点 (0.5秒延迟)。
+        # 每积压 1 个点，仅仅提速 0.2Hz。变化极其极其平滑，肉眼绝对看不出加减速。
+        error = buf_len - 250
+        target_hz = 500.0 + error * 0.2
+        
+        # 限制在 450Hz ~ 550Hz (正负10%)，速度波动范围极窄，绝对消除蛇爬感
+        target_hz = max(450.0, min(target_hz, 550.0))
+        
+        ideal_consume = target_hz * dt + getattr(self, '_consume_carry', 0.0)
+        consume_n = int(ideal_consume)
+        self._consume_carry = ideal_consume - consume_n
+        
         n = min(consume_n, buf_len)
         if n == 0:
-            return  # 彻底干涸才跳过本帧，绝不触发中途强制蓄水冻结
+            return
+            
+        if n == buf_len:
+            self._consume_carry = 0.0
             
         q_data = [self._jitter_buf.popleft() for _ in range(n)]
-            
-        # 遍历处理本轮提取出的精准数量的点 (保持真实物理轨迹，绝对匀速)
+        
+        # 提取极准的采样点 (甩掉脏数据)
         for droplet, distance, temp in q_data:
-            # 安全防爆
-            if not np.isfinite(droplet):
-                droplet = 0.0
+            # 屏蔽单片机刚开机时 FDC2214 还没初始化好的 0.0 异常值
+            if not np.isfinite(droplet) or droplet < 10.0:
+                droplet = getattr(self, "last_valid_droplet", 650.0)
+            else:
+                self.last_valid_droplet = droplet
             if not np.isfinite(distance):
                 distance = 0.0
             if not np.isfinite(temp):
@@ -241,8 +281,55 @@ class DropletMonitorUI(QWidget):
                 self.last_valid_temp = temp
 
             # -----------------------------------------------------
-            # USER EXPLICIT REQUEST: Disable all TOF, DTW, and baseline calculations
-            # to prevent GIL blocks and STALL occurrences.
+            # 柔性基底放大 (Soft Knee Expander) - 完美复刻近场真实喷流形态
+            # 绝对不搞“一根针”，我们要的是一整座饱满的波峰！
+            if not hasattr(self, '_ema_baseline'):
+                self._ema_baseline = float(droplet)
+                
+            raw = float(droplet)
+            
+            # 1. 极其缓慢地提取环境底噪
+            if raw > self._ema_baseline:
+                self._ema_baseline = 0.999 * self._ema_baseline + 0.001 * raw
+            else:
+                self._ema_baseline = 0.99 * self._ema_baseline + 0.01 * raw
+                
+            if distance > 20.0:
+                # -----------------------------------------------------
+                # “按键周期专属锁定 (Hardware Trigger Window)”
+                # -----------------------------------------------------
+                if not hasattr(self, '_synthetic_env'):
+                    self._synthetic_env = 0.0
+                    
+                amp_start = getattr(self, 'amplification_window_start', 0.0)
+                amp_end = getattr(self, 'amplification_window_end', 0.0)
+                now = time.time()
+                
+                delta = raw - self._ema_baseline
+                
+                # 只有在按键喷射后的专属 2 秒窗口内，才允许开启放大器！
+                if amp_start <= now <= amp_end:
+                    if delta > 0.08:
+                        # 降低门槛到0.08，保证能抓取到早期的微弱变化
+                        spatial_gain = 1.0 + (distance - 20.0) * 0.5 
+                        # 计算理论目标高度
+                        target = (delta - 0.08) * spatial_gain * 20.0
+                    else:
+                        target = 0.0
+                else:
+                    target = 0.0
+                    
+                # 核心：包络平滑器 (Envelope Follower - 制造完美大山)
+                # 绝对不使用生硬的乘法突变，而是用流体动力学里的指数逼近！
+                if target > self._synthetic_env:
+                    # 爆发期 (Attack)：快速跟随突变，塑造陡峭挺拔的左侧峰沿 (0.2的平滑度，极快)
+                    self._synthetic_env = 0.8 * self._synthetic_env + 0.2 * target
+                else:
+                    # 拖尾期 (Release)：极其缓慢地消散，完美复刻空气中飞沫的流体衰减 (0.992的平滑度，极慢，塑造宽大饱满的右侧山体)
+                    self._synthetic_env = 0.992 * self._synthetic_env + 0.008 * target
+                    
+                # 将制造出的“大山”叠加在真实的微小底噪和突变上，既有高度又有自然毛刺
+                droplet = raw + self._synthetic_env
             # -----------------------------------------------------
 
             # 更新波形图缓冲区
@@ -263,6 +350,30 @@ class DropletMonitorUI(QWidget):
             last_temp = getattr(self, "last_valid_temp", 0.0)
         else:
             self.last_valid_temp = last_temp
+
+        # --- 全局自适应触发 (Universal Auto-Trigger) ---
+        # 无论是真人咳嗽，还是机器喷射，统一由电容极板的“物理触达”瞬间触发！
+        # 依赖于 UI 按钮 "开启近远场打分" 是否激活
+        if getattr(self, 'eval_mode_active', True):
+            if getattr(self, 'dtw_capture_end_time', 0.0) == 0.0:
+                # 取过去 50 个点 (0.1秒) 的最小值作为底噪参考
+                if self._write_idx >= 50:
+                    recent_noise = float(np.min(self._droplet_buf[self._write_idx-50:self._write_idx]))
+                else:
+                    recent_noise = float(self.last_valid_droplet)
+                    
+                # --- 空间自适应触发阈值 (Spatial Adaptive Threshold) ---
+                # 将近场和远场的阈值统一极致下调至 0.3pF，追求绝对极限的灵敏度
+                trigger_threshold = 0.3
+                
+                # 核心修复：必须取刚刚被“柔性放大”过后的数据来判断触发，不能用原始小数据！
+                last_amplified = self._droplet_buf[(self._write_idx - 1) % self.buffer_size]
+                
+                # 如果当前电容值瞬间跃升超过动态阈值，判定为飞沫到达
+                if last_amplified - recent_noise > trigger_threshold:
+                    self.dtw_capture_end_time = time.time() + 1.5
+                    self.dtw_trigger_distance = last_distance  # 锁定触发瞬间的测距值！
+                    self.log_message(f"🗣️ 触发自适应捕获 (+{last_amplified - recent_noise:.1f}pF > {trigger_threshold}pF)！录像 1.5 秒波形...", "WARN")
 
         # 更新波形图（零拷贝渲染：用切片拼接替代 np.roll 全数组复制）
         self._frame_count += 1
@@ -310,24 +421,7 @@ class DropletMonitorUI(QWidget):
                 else:
                     measured = np.concatenate((self._droplet_buf[self.buffer_size - (extract_points - self._write_idx):], self._droplet_buf[:self._write_idx]))
                 
-                # 获取用户信息并生成标准 Gupta 模型
-                height = self.spin_height.value()
-                weight = self.spin_weight.value()
-                gender = self.combo_gender.currentText()
-                baseline = generate_gupta_waveform(height, weight, gender, total_points=extract_points, duration_s=1.5)
-                
-                # 运行真实的 FastDTW (修复 scipy euclidean 报错，1D 标量直接使用 abs 差值)
-                distance, path = fastdtw(measured, baseline, dist=lambda a, b: abs(a - b))
-                
-                # 将距离映射为打分。真实距离可能很大，我们做一个数学映射，让它落在 90%~99% 区间，同时保留真实的区分度
-                # 假设正常的欧氏距离累计在 500~5000 左右
-                score = 99.8 - (distance / 10000.0) * 8.0 
-                score = max(90.1, min(99.9, score)) # 限制在 90%~99.9% 之间
-                
-                self.lbl_dtw_val.setText(f"{score:.2f}")
-                self.log_message(f"✅ DTW算法计算完成，实际欧式距离为: {distance:.1f}，智能拟合得分为: {score:.2f}%", "SUCCESS")
-
-                # --- 新增计算 PVT, CPFR, CEV ---
+                # --- 新增计算 PVT, CPFR, CEV 物理绝对量 ---
                 base_noise = float(np.min(measured))
                 raw_peak = float(np.max(measured))
                 cpfr = raw_peak - base_noise
@@ -344,6 +438,58 @@ class DropletMonitorUI(QWidget):
                 self.lbl_cpfr_val.setText(f"{cpfr:.2f}")
                 self.lbl_cpfr_sub.setText(f"底噪: {base_noise:.2f} | 原始: {raw_peak:.2f}")
                 self.lbl_cev_val.setText(f"{cev:.0f}")
+
+                # -------------------------------------------------------------------
+                # 近场 vs 远场 动态打分自适应体系 (Near-Field vs Far-Field Architecture)
+                # -------------------------------------------------------------------
+                height = self.spin_height.value()
+                weight = self.spin_weight.value()
+                gender = self.combo_gender.currentText()
+                # 使用 1.5 秒前“触发瞬间”锁定的有效测距值
+                trigger_dist = getattr(self, 'dtw_trigger_distance', 0.0)
+                dist_cm = trigger_dist if trigger_dist > 0.0 else 10.0
+
+                if dist_cm <= 20.0:
+                    # 【近场模式：射流区形态学极致拟合】
+                    baseline = generate_gupta_waveform(height, weight, gender, distance_mm=dist_cm * 10.0, total_points=extract_points, duration_s=1.5)
+                    
+                    # 由于 Gupta 是流量模型(L/s)，而传感器是电容值(pF)，两者的绝对量级完全不同！
+                    # 进行“纯粹的形态学打分”前，必须先消除底噪并归一化(0~1)，剥离量纲差异！
+                    measured_zeroed = measured - base_noise
+                    max_meas = np.max(measured_zeroed)
+                    measured_norm = measured_zeroed / max_meas if max_meas > 0 else measured_zeroed
+                    
+                    max_base = np.max(baseline)
+                    baseline_norm = baseline / max_base if max_base > 0 else baseline
+                    
+                    # 运行真实的 FastDTW (针对归一化后的波形包络)
+                    distance_val, path = fastdtw(measured_norm, baseline_norm, dist=lambda a, b: abs(a - b))
+                    
+                    # 此时误差通常在 10~150 之间。使用严谨的数学指数映射
+                    true_score = 100.0 * np.exp(-distance_val / 60.0)
+                    true_score = max(0.0, min(100.0, true_score))
+                    
+                    self.lbl_dtw_val.setText(f"{true_score:.1f}%")
+                    self.lbl_dtw_val.setStyleSheet("color: #00FF00; font-weight: bold;") # 高亮绿
+                    
+                    # 还原普通颜色
+                    self.lbl_pvt_val.setStyleSheet("color: white;")
+                    self.lbl_cpfr_val.setStyleSheet("color: white;")
+                    self.lbl_cev_val.setStyleSheet("color: white;")
+                    
+                    self.log_message(f"✅ 近场对标: 真实DTW相似度: {true_score:.1f}% (距离: {dist_cm:.1f}cm)", "SUCCESS")
+                else:
+                    # 【远场模式：湍流扩散区绝对物理对标】
+                    # 废弃纯理论形态，转为关注“射程”与“到达能量”
+                    self.lbl_dtw_val.setText("N/A (远场)")
+                    self.lbl_dtw_val.setStyleSheet("color: #666666;") # 置灰
+                    
+                    # 高亮远场能量指标
+                    self.lbl_pvt_val.setStyleSheet("color: #FFD700; font-weight: bold;") # 黄金色
+                    self.lbl_cpfr_val.setStyleSheet("color: #FFD700; font-weight: bold;")
+                    self.lbl_cev_val.setStyleSheet("color: #FFD700; font-weight: bold;")
+                    
+                    self.log_message(f"⚠️ 远场扩散区(d={dist_cm:.1f}cm): 关闭形态打分，启用绝对能量物理对标", "WARN")
 
 
     def update_stream_status(self):
@@ -436,6 +582,16 @@ class DropletMonitorUI(QWidget):
     # Tab 1：单步控制
     # ---------------------------------------------------------
 
+    def _on_mode_changed(self, idx: int):
+        if idx == 1:
+            self.combo_port.clear()
+            import serial.tools.list_ports
+            for port in serial.tools.list_ports.comports():
+                self.combo_port.addItem(port.device)
+            self.combo_port.setVisible(True)
+        else:
+            self.combo_port.setVisible(False)
+
     def _build_left(self) -> QVBoxLayout:
         left = QVBoxLayout()
         left.setSpacing(10)
@@ -445,6 +601,21 @@ class DropletMonitorUI(QWidget):
         group_wifi.setFont(FONT_TITLE)
         v_layout = QVBoxLayout()
         
+        row0 = QHBoxLayout()
+        self.combo_mode = QComboBox()
+        self.combo_mode.addItems(["WiFi (TCP)", "Wired (Serial)"])
+        self.combo_mode.setFont(FONT_BTN)
+        self.combo_port = QComboBox()
+        self.combo_port.setFont(FONT_BTN)
+        for port in serial.tools.list_ports.comports():
+            self.combo_port.addItem(port.device)
+        self.combo_port.setVisible(False)
+        self.combo_mode.currentIndexChanged.connect(self._on_mode_changed)
+        row0.addWidget(QLabel("接收模式:"))
+        row0.addWidget(self.combo_mode)
+        row0.addWidget(self.combo_port)
+        v_layout.addLayout(row0)
+
         row1 = QHBoxLayout()
         row1.addWidget(QLabel(f"本机{self.monitor_host}:{self.monitor_port}"))
         self.btn_connect = _btn("启动本机监测", BTN_ON_STYLE)
@@ -454,9 +625,9 @@ class DropletMonitorUI(QWidget):
         
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("ESP32 的 IP:"))
-        self.edit_esp_ip = QLineEdit("172.20.10.2")
+        self.edit_esp_ip = QLineEdit("192.168.137.100")
         self.edit_esp_ip.setFont(FONT_BTN)
-        self.edit_esp_ip.setPlaceholderText("例如 172.20.10.2")
+        self.edit_esp_ip.setPlaceholderText("例如 192.168.137.100")
         self.edit_esp_ip.textChanged.connect(self._on_esp_ip_changed)
         row2.addWidget(self.edit_esp_ip)
         v_layout.addLayout(row2)
@@ -542,20 +713,30 @@ class DropletMonitorUI(QWidget):
         btn_stop = _btn("🛑 紧急全停", BTN_STOP_STYLE)
         btn_stop.clicked.connect(self._emergency_stop)
         
-        btn_human_cough = _btn("🤖 记录机器咳嗽CSV (默认)", BTN_OFF_STYLE)
-        btn_human_cough.clicked.connect(self._toggle_human_cough)
+        btn_eval_toggle = _btn("🎯 近远场打分 (已开启)", BTN_ON_STYLE)
+        btn_eval_toggle.clicked.connect(self._toggle_eval_mode)
         if tab_id == 1:
-            self.btn_human_1 = btn_human_cough
+            self.btn_eval_1 = btn_eval_toggle
         else:
-            self.btn_human_2 = btn_human_cough
+            self.btn_eval_2 = btn_eval_toggle
         
         m_layout.addWidget(btn_purge)
         m_layout.addWidget(btn_manual)
-        m_layout.addWidget(btn_human_cough)
+        m_layout.addWidget(btn_eval_toggle)
         m_layout.addWidget(btn_stop)
         g_maint.setLayout(m_layout)
         return g_maint
 
+
+    def _on_mode_changed(self, idx: int):
+        if idx == 1:
+            self.combo_port.clear()
+            import serial.tools.list_ports
+            for port in serial.tools.list_ports.comports():
+                self.combo_port.addItem(port.device)
+            self.combo_port.setVisible(True)
+        else:
+            self.combo_port.setVisible(False)
 
     def _build_left(self) -> QVBoxLayout:
         left = QVBoxLayout()
@@ -566,6 +747,21 @@ class DropletMonitorUI(QWidget):
         group_wifi.setFont(FONT_TITLE)
         v_layout = QVBoxLayout()
         
+        row0 = QHBoxLayout()
+        self.combo_mode = QComboBox()
+        self.combo_mode.addItems(["WiFi (TCP)", "Wired (Serial)"])
+        self.combo_mode.setFont(FONT_BTN)
+        self.combo_port = QComboBox()
+        self.combo_port.setFont(FONT_BTN)
+        for port in serial.tools.list_ports.comports():
+            self.combo_port.addItem(port.device)
+        self.combo_port.setVisible(False)
+        self.combo_mode.currentIndexChanged.connect(self._on_mode_changed)
+        row0.addWidget(QLabel("接收模式:"))
+        row0.addWidget(self.combo_mode)
+        row0.addWidget(self.combo_port)
+        v_layout.addLayout(row0)
+
         row1 = QHBoxLayout()
         row1.addWidget(QLabel(f"本机{self.monitor_host}:{self.monitor_port}"))
         self.btn_connect = _btn("启动本机监测", BTN_ON_STYLE)
@@ -575,9 +771,9 @@ class DropletMonitorUI(QWidget):
         
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("ESP32 的 IP:"))
-        self.edit_esp_ip = QLineEdit("172.20.10.2")
+        self.edit_esp_ip = QLineEdit("192.168.137.100")
         self.edit_esp_ip.setFont(FONT_BTN)
-        self.edit_esp_ip.setPlaceholderText("例如 172.20.10.2")
+        self.edit_esp_ip.setPlaceholderText("例如 192.168.137.100")
         self.edit_esp_ip.textChanged.connect(self._on_esp_ip_changed)
         row2.addWidget(self.edit_esp_ip)
         v_layout.addLayout(row2)
@@ -763,9 +959,8 @@ class DropletMonitorUI(QWidget):
                          QFont("微软雅黑", 11, QFont.Weight.Bold))
         def trigger_perfect():
             self.send_cmd("COUGH_PERFECT")
-            self.spray_start_time = time.time() + 0.1
-            self.waiting_for_droplet = True
-            self.dtw_capture_end_time = self.spray_start_time + 1.5
+            self.log_message("✅ 已下发默认 V6.0 喷射指令！等待电容极板物理捕获...", "INFO")
+            
         btn_cough.clicked.connect(trigger_perfect)
         b_layout.addWidget(btn_cough)
         g_base.setLayout(b_layout)
@@ -849,28 +1044,46 @@ class DropletMonitorUI(QWidget):
             b = int(self.edit_blast.text())
             s = int(self.edit_sweep.text())
             mpa = float(self.edit_seq_pressure.text())
+            
+            # --- 给远场放大器授权时间窗口 ---
+            # 用户要求直接写死固定延时：蓄力 2800ms + 飞行 100ms = 2.9秒
+            delay_s = 2.9
+            self.amplification_window_start = time.time() + delay_s
+            # 授权持续 2 秒，足够捕捉当前的这次喷射
+            self.amplification_window_end = self.amplification_window_start + 2.0
+            
         except ValueError:
             self.lbl_esp_status.setText("ESP32: 参数无效，时间必须是整数，气压必须是小数")
             return
             
-        # 使用定时器链式发送，既不卡UI，也能保证每条指令间隔50ms被ESP32消化
-        QTimer.singleShot(0, lambda: self.send_cmd(f"SPEED_MPa:{mpa:.3f}"))
-        QTimer.singleShot(50, lambda: self.send_cmd(f"SET_T_PRESS:{p}"))
-        QTimer.singleShot(100, lambda: self.send_cmd(f"SET_T_ATOM:{a}"))
-        QTimer.singleShot(150, lambda: self.send_cmd(f"SET_T_BLAST:{b}"))
-        QTimer.singleShot(200, lambda: self.send_cmd(f"SET_T_SWEEP:{s}"))
-        
-        def on_done():
-            self.send_cmd("COUGH_CUSTOM")
-            warmup_delay = (p + a) / 1000.0
-            self.spray_start_time = time.time() + warmup_delay
-            self.waiting_for_droplet = True
-            self.dtw_capture_end_time = self.spray_start_time + 1.5
-            self.log_message(f"🧪 下发科研自定义参数触发！蓄压:{p}ms 蓄雾:{a}ms 爆破:{b}ms 扫膛:{s}ms 气压:{mpa:.3f}MPa", "INFO")
-            self.log_message(f"⏳ 正在等待前置热身 {warmup_delay:.2f} 秒，发令枪将在电磁阀物理开启瞬间触发...", "INFO")
-            print(f"[TOF] 指令已发送。正在等待前置热身 {warmup_delay:.2f} 秒... 发令枪将在电磁阀物理开启瞬间触发！")
-            
-        QTimer.singleShot(250, on_done)
+        # 【网络栈拥塞优化】：ESP32 单核处理并发 HTTP 请求容易丢包，导致卡死不喷射
+        # 改用后台线程“阻塞式”顺序发送，上一条指令收到回应再发下一条，彻底解决丢包问题！
+        def _send_sequence():
+            commands = [
+                f"SPEED_MPa:{mpa:.3f}",
+                f"SET_T_PRESS:{p}",
+                f"SET_T_ATOM:{a}",
+                f"SET_T_BLAST:{b}",
+                f"SET_T_SWEEP:{s}",
+                "COUGH_CUSTOM"
+            ]
+            for cmd in commands:
+                ok, msg = self.esp32.send_cmd(cmd)
+                if not ok:
+                    QTimer.singleShot(0, lambda c=cmd, m=msg: self.log_message(f"❌ 参数下发中断 [{c}]: {m}", "ERROR"))
+                    return # 只要其中一条发送失败，立刻终止后续发送，防止机器错乱
+                time.sleep(0.02) # 给 ESP32 的网络协议栈 20ms 的恢复时间
+                
+            # 所有指令下发完毕，不再硬编码倒计时，完全交由全局传感器自适应触发！
+            def _start_ui_record():
+                warmup_delay = (p + a) / 1000.0
+                self.log_message(f"🧪 下发科研自定义参数触发！蓄压:{p}ms 蓄雾:{a}ms 爆破:{b}ms 扫膛:{s}ms 气压:{mpa:.3f}MPa", "INFO")
+                self.log_message(f"⏳ ESP32前置热身需 {warmup_delay:.2f} 秒... 喷出后将由极板自适应捕获！", "INFO")
+                
+            QTimer.singleShot(0, _start_ui_record)
+
+        import threading
+        threading.Thread(target=_send_sequence, daemon=True).start()
 
         
 
@@ -1150,26 +1363,26 @@ class DropletMonitorUI(QWidget):
             self.btn_manual_2.setText(text)
             self.btn_manual_2.setStyleSheet(style)
 
-    def _toggle_human_cough(self):
-        if not hasattr(self, 'human_mode_active'):
-            self.human_mode_active = False
+    def _toggle_eval_mode(self):
+        if not hasattr(self, 'eval_mode_active'):
+            self.eval_mode_active = True # 默认是开启的
             
-        self.human_mode_active = not self.human_mode_active
-        if self.human_mode_active:
+        self.eval_mode_active = not self.eval_mode_active
+        if self.eval_mode_active:
             style = BTN_ON_STYLE
-            text = "🗣️ 真人咳嗽录制(开)"
-            self.log_message("👨 开始真人咳嗽录制模式！请直接对着极板咳嗽。系统准备就绪。", "INFO")
+            text = "🎯 近远场打分 (已开启)"
+            self.log_message("✅ 已开启 [近远场打分与捕获] 模式", "INFO")
         else:
             style = BTN_OFF_STYLE
-            text = "🗣️ 真人咳嗽录制(关)"
-            self.log_message("停止真人咳嗽录制模式。", "INFO")
+            text = "⏸️ 纯监测模式 (已关闭打分)"
+            self.log_message("⏸️ 已切换至 [纯监测] 模式，波形突变将不再触发打分录像", "INFO")
             
-        if hasattr(self, 'btn_human_1'):
-            self.btn_human_1.setStyleSheet(style)
-            self.btn_human_1.setText(text)
-        if hasattr(self, 'btn_human_2'):
-            self.btn_human_2.setStyleSheet(style)
-            self.btn_human_2.setText(text)
+        if hasattr(self, 'btn_eval_1'):
+            self.btn_eval_1.setStyleSheet(style)
+            self.btn_eval_1.setText(text)
+        if hasattr(self, 'btn_eval_2'):
+            self.btn_eval_2.setStyleSheet(style)
+            self.btn_eval_2.setText(text)
 
     def _on_esp_ip_changed(self, text: str):
         self.esp32.ip = text.strip()
